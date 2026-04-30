@@ -4,7 +4,12 @@
       "Bash(npx tsc *)",
       "Bash(npx prisma *)",
       "Bash(npm install *)",
-      "Bash(npx shadcn@latest init -d -y)"
+      "Bash(npx shadcn@latest init -d -y)",
+      "Bash(npx shadcn@latest add dialog input select card table label textarea checkbox badge form -y)",
+      "Bash(npx shadcn@latest add form -y)",
+      "Bash(npx shadcn@latest add form sonner -y --overwrite)",
+      "Bash(npx shadcn@latest add form -y --overwrite)",
+      "Bash(npx shadcn@latest add dropdown-menu alert-dialog avatar -y)"
     ]
   }
 }

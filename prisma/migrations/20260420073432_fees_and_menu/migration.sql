@@ -17,16 +17,30 @@ CREATE TABLE "Room" (
 );
 
 -- CreateTable
+CREATE TABLE "MenuItem" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "day" TEXT NOT NULL,
+    "meal" TEXT NOT NULL,
+    "items" TEXT NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL
+);
+
+-- CreateTable
 CREATE TABLE "Student" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "rollNo" TEXT NOT NULL,
     "name" TEXT NOT NULL,
+    "fatherName" TEXT,
+    "address" TEXT,
     "phone" TEXT,
-    "email" TEXT,
-    "guardian" TEXT,
     "guardPhone" TEXT,
+    "cnic" TEXT,
+    "imageUrl" TEXT,
+    "email" TEXT,
     "course" TEXT,
-    "feesPaid" BOOLEAN NOT NULL DEFAULT false,
+    "feeTotal" REAL,
+    "feePaid" REAL NOT NULL DEFAULT 0,
     "roomId" INTEGER,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "Student_roomId_fkey" FOREIGN KEY ("roomId") REFERENCES "Room" ("id") ON DELETE SET NULL ON UPDATE CASCADE
@@ -37,6 +51,9 @@ CREATE UNIQUE INDEX "Warden_email_key" ON "Warden"("email");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Room_number_key" ON "Room"("number");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "MenuItem_day_meal_key" ON "MenuItem"("day", "meal");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Student_rollNo_key" ON "Student"("rollNo");

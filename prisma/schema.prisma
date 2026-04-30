@@ -24,6 +24,17 @@ model Room {
   students  Student[]
 }
 
+model MenuItem {
+  id        Int      @id @default(autoincrement())
+  day       String
+  meal      String
+  items     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([day, meal])
+}
+
 model Student {
   id         Int      @id @default(autoincrement())
   rollNo     String   @unique
@@ -33,9 +44,11 @@ model Student {
   phone      String?
   guardPhone String?
   cnic       String?
+  imageUrl   String?
   email      String?
   course     String?
-  feesPaid   Boolean  @default(false)
+  feeTotal   Float?
+  feePaid    Float    @default(0)
   roomId     Int?
   room       Room?    @relation(fields: [roomId], references: [id], onDelete: SetNull)
   createdAt  DateTime @default(now())

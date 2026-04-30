@@ -1,11 +1,72 @@
 'use client'
-import React, { useState } from 'react'
-import { useRooms, useCreateRoom, useDeleteRoom, type RoomWithStudents, type StudentSummary } from '@/hooks/api/rooms'
-import { useCreateStudent, useDeleteStudent } from '@/hooks/api/students'
-import { roomCreateSchema } from '@/lib/schemas/room'
-import { studentCreateSchema } from '@/lib/schemas/student'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import Image from 'next/image'
+import { useSearchParams } from 'next/navigation'
+import { Search } from 'lucide-react'
+import { useForm, Controller, useWatch } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { toast } from 'sonner'
+import { MoreVertical, Pencil, Trash2, Upload, X } from 'lucide-react'
+import {
+  useRooms,
+  useCreateRoom,
+  useUpdateRoom,
+  useDeleteRoom,
+  type StudentSummary,
+} from '@/hooks/api/rooms'
+import {
+  useCreateStudent,
+  useUpdateStudent,
+  useDeleteStudent,
+  useUploadImage,
+} from '@/hooks/api/students'
+import { roomCreateSchema, type RoomCreateInput } from '@/lib/schemas/room'
+import {
+  studentCreateSchema,
+  computeFeeStatus,
+  type StudentCreateInput,
+} from '@/lib/schemas/student'
 
-const emptyStudent = {
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+
+const emptyStudent: StudentCreateInput = {
   rollNo: '',
   name: '',
   fatherName: '',
@@ -13,85 +74,174 @@ const emptyStudent = {
   phone: '',
   guardPhone: '',
   cnic: '',
-  feesPaid: false,
+  imageUrl: '',
+  feeTotal: null,
+  feePaid: 0,
 }
 
+const feeBadge = (status: ReturnType<typeof computeFeeStatus>) => {
+  if (status === 'paid') return { label: 'Paid', variant: 'default' as const }
+  if (status === 'partial') return { label: 'Partial', variant: 'secondary' as const }
+  return { label: 'Unpaid', variant: 'destructive' as const }
+}
+
+type DeleteTarget =
+  | { kind: 'room'; id: number; label: string }
+  | { kind: 'student'; id: number; label: string }
+  | null
+
+type RoomFilter = 'all' | 'available' | 'full' | 'empty'
+
 const RoomOrganization = () => {
+  const sp = useSearchParams()
+  const urlFilter = (sp.get('filter') as RoomFilter | null) || 'all'
   const { data: rooms = [], isLoading } = useRooms()
+  const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState<RoomFilter>(urlFilter)
+
+  const filteredRooms = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return rooms.filter((r) => {
+      const occ = r.students.length
+      const full = occ >= r.capacity
+      const empty = occ === 0
+      if (filter === 'full' && !full) return false
+      if (filter === 'empty' && !empty) return false
+      if (filter === 'available' && full) return false
+      if (!q) return true
+      if (r.number.toLowerCase().includes(q)) return true
+      return r.students.some(
+        (s) =>
+          s.name.toLowerCase().includes(q) ||
+          s.rollNo.toLowerCase().includes(q) ||
+          (s.fatherName?.toLowerCase().includes(q) ?? false),
+      )
+    })
+  }, [rooms, query, filter])
+
   const createRoom = useCreateRoom()
+  const updateRoom = useUpdateRoom()
   const deleteRoom = useDeleteRoom()
   const createStudent = useCreateStudent()
+  const updateStudent = useUpdateStudent()
   const deleteStudent = useDeleteStudent()
+  const uploadImage = useUploadImage()
 
-  const [open, setOpen] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [form, setForm] = useState({ number: '', floor: '', capacity: '2' })
-
+  const [roomDialog, setRoomDialog] = useState<
+    | { mode: 'create' }
+    | { mode: 'edit'; id: number }
+    | null
+  >(null)
   const [activeRoomId, setActiveRoomId] = useState<number | null>(null)
   const activeRoom = rooms.find((r) => r.id === activeRoomId) || null
-  const [addOpen, setAddOpen] = useState(false)
+  const [studentDialog, setStudentDialog] = useState<
+    | { mode: 'create' }
+    | { mode: 'edit'; student: StudentSummary }
+    | null
+  >(null)
   const [viewStudent, setViewStudent] = useState<StudentSummary | null>(null)
-  const [studentForm, setStudentForm] = useState(emptyStudent)
-  const [studentError, setStudentError] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null)
 
-  const submitRoom = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError(null)
-    const parsed = roomCreateSchema.safeParse({
-      number: form.number,
-      floor: form.floor,
-      capacity: form.capacity,
-    })
-    if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message || 'Invalid input')
-      return
+  const roomForm = useForm<RoomCreateInput>({
+    resolver: zodResolver(roomCreateSchema),
+    defaultValues: { number: '', floor: 1, capacity: 2 },
+  })
+
+  const studentForm = useForm<StudentCreateInput>({
+    resolver: zodResolver(studentCreateSchema),
+    defaultValues: emptyStudent,
+  })
+
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (!roomDialog) return
+    if (roomDialog.mode === 'create') {
+      roomForm.reset({ number: '', floor: 1, capacity: 2 })
+    } else {
+      const r = rooms.find((x) => x.id === roomDialog.id)
+      if (r) roomForm.reset({ number: r.number, floor: r.floor, capacity: r.capacity })
     }
+  }, [roomDialog, rooms, roomForm])
+
+  useEffect(() => {
+    if (!studentDialog) return
+    if (studentDialog.mode === 'create') {
+      studentForm.reset(emptyStudent)
+    } else {
+      const s = studentDialog.student
+      studentForm.reset({
+        rollNo: s.rollNo,
+        name: s.name,
+        fatherName: s.fatherName || '',
+        address: s.address || '',
+        phone: s.phone || '',
+        guardPhone: s.guardPhone || '',
+        cnic: s.cnic || '',
+        imageUrl: s.imageUrl || '',
+        feeTotal: s.feeTotal ?? null,
+        feePaid: s.feePaid ?? 0,
+      })
+    }
+  }, [studentDialog, studentForm])
+
+  const onSubmitRoom = async (values: RoomCreateInput) => {
     try {
-      await createRoom.mutateAsync(parsed.data)
-      setForm({ number: '', floor: '', capacity: '2' })
-      setOpen(false)
+      if (roomDialog?.mode === 'edit') {
+        await updateRoom.mutateAsync({ id: roomDialog.id, data: values })
+        toast.success(`Room ${values.number} updated`)
+      } else {
+        await createRoom.mutateAsync(values)
+        toast.success(`Room ${values.number} created`)
+      }
+      setRoomDialog(null)
     } catch (err) {
-      setError((err as Error).message)
+      toast.error((err as Error).message)
     }
   }
 
-  const removeRoom = async (id: number) => {
-    if (!confirm('Delete this room?')) return
-    await deleteRoom.mutateAsync(id)
-  }
-
-  const closeRoom = () => {
-    setActiveRoomId(null)
-    setAddOpen(false)
-    setViewStudent(null)
-  }
-
-  const addStudent = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!activeRoom) return
-    setStudentError(null)
-    const parsed = studentCreateSchema.safeParse({
-      ...studentForm,
-      roomId: activeRoom.id,
-    })
-    if (!parsed.success) {
-      setStudentError(parsed.error.issues[0]?.message || 'Invalid input')
-      return
-    }
+  const onSubmitStudent = async (values: StudentCreateInput) => {
     try {
-      await createStudent.mutateAsync(parsed.data)
-      setStudentForm(emptyStudent)
-      setAddOpen(false)
-      closeRoom()
+      if (studentDialog?.mode === 'edit') {
+        await updateStudent.mutateAsync({ id: studentDialog.student.id, data: values })
+        toast.success(`${values.name} updated`)
+      } else if (activeRoom) {
+        await createStudent.mutateAsync({ ...values, roomId: activeRoom.id })
+        toast.success(`${values.name} added to Room ${activeRoom.number}`)
+      }
+      setStudentDialog(null)
     } catch (err) {
-      setStudentError((err as Error).message)
+      toast.error((err as Error).message)
     }
   }
 
-  const removeStudent = async (id: number) => {
-    if (!confirm('Remove this student?')) return
-    await deleteStudent.mutateAsync(id)
-    closeRoom()
+  const handleImagePick = async (file: File) => {
+    try {
+      const url = await uploadImage.mutateAsync(file)
+      studentForm.setValue('imageUrl', url, { shouldDirty: true })
+      toast.success('Image uploaded')
+    } catch (err) {
+      toast.error((err as Error).message)
+    }
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return
+    try {
+      if (deleteTarget.kind === 'room') {
+        await deleteRoom.mutateAsync(deleteTarget.id)
+        toast.success('Room deleted')
+        if (activeRoomId === deleteTarget.id) setActiveRoomId(null)
+      } else {
+        await deleteStudent.mutateAsync(deleteTarget.id)
+        toast.success('Student removed')
+        setViewStudent(null)
+      }
+    } catch (err) {
+      toast.error((err as Error).message)
+    } finally {
+      setDeleteTarget(null)
+    }
   }
 
   const initials = (name: string) =>
@@ -99,444 +249,685 @@ const RoomOrganization = () => {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-wrap justify-between items-center gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Rooms</h1>
-          <p className="text-sm text-gray-500">
-            {isLoading ? 'Loading…' : `${rooms.length} total`}
+          <h1 className="text-2xl font-bold tracking-tight">Rooms</h1>
+          <p className="text-sm text-muted-foreground">
+            {isLoading
+              ? 'Loading…'
+              : `${filteredRooms.length} of ${rooms.length} shown`}
           </p>
         </div>
-        <button
-          onClick={() => setOpen(true)}
-          className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-5 py-2 rounded-xl shadow hover:shadow-lg hover:from-blue-700 hover:to-indigo-700 transition"
-        >
-          + Create Room
-        </button>
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <div className="flex rounded-lg border p-0.5 bg-background overflow-x-auto">
+            {(['all', 'available', 'full', 'empty'] as RoomFilter[]).map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`px-3 py-1.5 text-xs rounded-md capitalize transition whitespace-nowrap ${
+                  filter === f
+                    ? 'bg-blue-600 text-white shadow'
+                    : 'text-muted-foreground hover:bg-accent'
+                }`}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+          <div className="relative flex-1 sm:flex-none min-w-0">
+            <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search room or student…"
+              className="pl-9 w-full sm:w-64"
+            />
+          </div>
+          <Button onClick={() => setRoomDialog({ mode: 'create' })} className="whitespace-nowrap">+ Create Room</Button>
+        </div>
       </div>
 
       {isLoading ? (
-        <div className="bg-white rounded-2xl p-10 text-center text-gray-400 shadow-sm border border-gray-100">
-          Loading rooms…
-        </div>
+        <Card>
+          <CardContent className="p-10 text-center text-muted-foreground">Loading rooms…</CardContent>
+        </Card>
       ) : rooms.length === 0 ? (
-        <div className="bg-white rounded-2xl p-10 text-center text-gray-500 shadow-sm border border-gray-100">
-          No rooms yet. Click <span className="font-medium">Create Room</span> to add one.
-        </div>
+        <Card>
+          <CardContent className="p-10 text-center text-muted-foreground">
+            No rooms yet. Click <span className="font-medium">Create Room</span> to add one.
+          </CardContent>
+        </Card>
+      ) : filteredRooms.length === 0 ? (
+        <Card>
+          <CardContent className="p-10 text-center text-muted-foreground">
+            No rooms match your filters.
+          </CardContent>
+        </Card>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {rooms.map((r) => {
+          {filteredRooms.map((r) => {
             const occupancy = r.students.length
             const full = occupancy >= r.capacity
             return (
-              <button
+              <Card
                 key={r.id}
                 onClick={() => setActiveRoomId(r.id)}
-                className="text-left bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-md hover:border-blue-200 transition"
+                className="cursor-pointer hover:border-blue-300 hover:shadow-md transition relative"
               >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-800">Room {r.number}</h3>
-                    <p className="text-xs text-gray-500">
-                      Floor {r.floor} • {r.capacity} Seater
-                    </p>
+                <CardHeader className="pb-2">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <CardTitle className="text-lg">Room {r.number}</CardTitle>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Floor {r.floor} • {r.capacity} Seater
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                      <Badge variant={full ? 'destructive' : occupancy === 0 ? 'secondary' : 'default'}>
+                        {full ? 'Full' : occupancy === 0 ? 'Empty' : 'Available'}
+                      </Badge>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger className="inline-flex items-center justify-center h-8 w-8 rounded-md hover:bg-accent">
+                          <MoreVertical className="h-4 w-4" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => setRoomDialog({ mode: 'edit', id: r.id })}>
+                            <Pencil className="mr-2 h-4 w-4" /> Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-red-600 focus:text-red-600"
+                            onClick={() =>
+                              setDeleteTarget({ kind: 'room', id: r.id, label: `Room ${r.number}` })
+                            }
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" /> Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </div>
-                  <span
-                    className={`text-xs px-2 py-1 rounded-full font-medium ${
-                      full
-                        ? 'bg-red-100 text-red-700'
-                        : occupancy === 0
-                          ? 'bg-gray-100 text-gray-600'
-                          : 'bg-green-100 text-green-700'
-                    }`}
-                  >
-                    {full ? 'Full' : occupancy === 0 ? 'Empty' : 'Available'}
-                  </span>
-                </div>
-                <div className="mt-4 flex items-center justify-between">
-                  <p className="text-sm text-gray-600">
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">
                     Occupancy:{' '}
-                    <span className="font-medium text-gray-800">
+                    <span className="font-medium text-foreground">
                       {occupancy}/{r.capacity}
                     </span>
                   </p>
-                  <span
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      removeRoom(r.id)
-                    }}
-                    className="text-xs text-red-600 hover:underline cursor-pointer"
-                  >
-                    Delete
-                  </span>
-                </div>
-              </button>
+                </CardContent>
+              </Card>
             )
           })}
         </div>
       )}
 
-      {open && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/40 z-50">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-xl p-6">
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">Create Room</h2>
-            <form className="space-y-4" onSubmit={submitRoom}>
+      {/* Room Create/Edit Dialog */}
+      <Dialog open={!!roomDialog} onOpenChange={(o) => !o && setRoomDialog(null)}>
+        <DialogContent className="w-[95vw] max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {roomDialog?.mode === 'edit' ? 'Edit Room' : 'Create Room'}
+            </DialogTitle>
+            <DialogDescription>
+              {roomDialog?.mode === 'edit'
+                ? 'Update room details.'
+                : 'Add a new room with floor and capacity.'}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={roomForm.handleSubmit(onSubmitRoom)} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="number">Room Number</Label>
+              <Input id="number" placeholder="e.g. 101" {...roomForm.register('number')} />
+              {roomForm.formState.errors.number && (
+                <p className="text-xs text-red-600">{roomForm.formState.errors.number.message}</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label>Floor</Label>
+              <Controller
+                control={roomForm.control}
+                name="floor"
+                render={({ field }) => (
+                  <Select
+                    value={field.value ? String(field.value) : ''}
+                    onValueChange={(v) => field.onChange(Number(v))}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select floor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[1, 2, 3, 4, 5].map((f) => (
+                        <SelectItem key={f} value={String(f)}>
+                          Floor {f}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Capacity</Label>
+              <Controller
+                control={roomForm.control}
+                name="capacity"
+                render={({ field }) => (
+                  <Select
+                    value={field.value ? String(field.value) : ''}
+                    onValueChange={(v) => field.onChange(Number(v))}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select capacity" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="2">2 Seater</SelectItem>
+                      <SelectItem value="3">3 Seater</SelectItem>
+                      <SelectItem value="4">4 Seater</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setRoomDialog(null)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={createRoom.isPending || updateRoom.isPending}>
+                {createRoom.isPending || updateRoom.isPending ? 'Saving…' : 'Save'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Room Details Dialog */}
+      <Dialog
+        open={!!activeRoom && !studentDialog && !viewStudent}
+        onOpenChange={(o) => !o && setActiveRoomId(null)}
+      >
+        {activeRoom && (
+          <DialogContent className="w-[95vw] max-w-2xl p-0 overflow-hidden">
+            <div className="bg-linear-to-r from-blue-600 to-indigo-600 text-white p-6">
+              <DialogHeader>
+                <DialogTitle className="text-white text-2xl">Room {activeRoom.number}</DialogTitle>
+                <DialogDescription className="text-blue-100">
+                  Floor {activeRoom.floor} • {activeRoom.capacity} Seater •{' '}
+                  {activeRoom.students.length}/{activeRoom.capacity} occupied
+                </DialogDescription>
+              </DialogHeader>
+            </div>
+
+            <div className="p-6 space-y-3 max-h-[50vh] overflow-y-auto">
+              {Array.from({ length: activeRoom.capacity }).map((_, i) => {
+                const s = activeRoom.students[i]
+                return (
+                  <Card key={i} className={s ? '' : 'border-dashed bg-muted/30'}>
+                    <CardContent className="flex items-center justify-between p-4">
+                      <button
+                        type="button"
+                        onClick={() => s && setViewStudent(s)}
+                        className="flex items-center gap-3 text-left flex-1"
+                        disabled={!s}
+                      >
+                        {s ? (
+                          s.imageUrl ? (
+                            <Image
+                              src={s.imageUrl}
+                              alt={s.name}
+                              width={44}
+                              height={44}
+                              className="w-11 h-11 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-11 h-11 rounded-full bg-linear-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center font-semibold">
+                              {initials(s.name)}
+                            </div>
+                          )
+                        ) : (
+                          <div className="w-11 h-11 rounded-full bg-muted text-muted-foreground flex items-center justify-center">
+                            {i + 1}
+                          </div>
+                        )}
+                        <div>
+                          {s ? (
+                            <>
+                              <p className="font-semibold">{s.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                Roll #{s.rollNo}
+                                {s.fatherName ? ` • S/O ${s.fatherName}` : ''}
+                              </p>
+                              {s.feeTotal ? (
+                                <p className="text-xs mt-0.5">
+                                  <span className="text-muted-foreground">Remaining: </span>
+                                  <span
+                                    className={
+                                      s.feePaid >= s.feeTotal
+                                        ? 'text-emerald-600 font-medium'
+                                        : 'text-red-600 font-medium'
+                                    }
+                                  >
+                                    {Math.max(s.feeTotal - s.feePaid, 0)}
+                                  </span>
+                                </p>
+                              ) : null}
+                            </>
+                          ) : (
+                            <>
+                              <p className="font-medium text-muted-foreground">Bed {i + 1}</p>
+                              <p className="text-xs text-muted-foreground">Empty</p>
+                            </>
+                          )}
+                        </div>
+                      </button>
+                      {s && (() => {
+                        const fb = feeBadge(computeFeeStatus(s.feePaid, s.feeTotal))
+                        return (
+                        <div className="flex items-center gap-2">
+                          <Badge variant={fb.variant}>{fb.label}</Badge>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger className="inline-flex items-center justify-center h-8 w-8 rounded-md hover:bg-accent">
+                              <MoreVertical className="h-4 w-4" />
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => setViewStudent(s)}>
+                                View
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => setStudentDialog({ mode: 'edit', student: s })}
+                              >
+                                <Pencil className="mr-2 h-4 w-4" /> Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-red-600 focus:text-red-600"
+                                onClick={() =>
+                                  setDeleteTarget({
+                                    kind: 'student',
+                                    id: s.id,
+                                    label: s.name,
+                                  })
+                                }
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" /> Remove
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                        )
+                      })()}
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+
+            <div className="p-6 border-t bg-muted/30">
+              {activeRoom.students.length >= activeRoom.capacity ? (
+                <p className="text-sm text-center text-red-600 bg-red-50 dark:bg-red-950/30 rounded-lg py-3 border border-red-100 dark:border-red-900">
+                  🚫 This room is full ({activeRoom.capacity}/{activeRoom.capacity}).
+                </p>
+              ) : (
+                <Button onClick={() => setStudentDialog({ mode: 'create' })} className="w-full" size="lg">
+                  + Add Student to This Room
+                </Button>
+              )}
+            </div>
+          </DialogContent>
+        )}
+      </Dialog>
+
+      {/* Student Create/Edit Dialog */}
+      <Dialog open={!!studentDialog} onOpenChange={(o) => !o && setStudentDialog(null)}>
+        {studentDialog && (
+          <DialogContent className="w-[95vw] max-w-4xl sm:max-w-4xl p-0 overflow-hidden">
+            <div className="bg-linear-to-r from-emerald-600 to-teal-600 text-white p-6">
+              <DialogHeader>
+                <DialogTitle className="text-white text-2xl">
+                  {studentDialog.mode === 'edit' ? 'Edit Student' : 'Add Student'}
+                </DialogTitle>
+                <DialogDescription className="text-emerald-100">
+                  {studentDialog.mode === 'edit'
+                    ? `Update ${studentDialog.student.name}'s details`
+                    : activeRoom
+                      ? `Room ${activeRoom.number} • Bed ${activeRoom.students.length + 1} of ${activeRoom.capacity}`
+                      : ''}
+                </DialogDescription>
+              </DialogHeader>
+            </div>
+
+            <form
+              onSubmit={studentForm.handleSubmit(onSubmitStudent)}
+              className="p-6 space-y-5 max-h-[70vh] overflow-y-auto"
+            >
+              {/* Image picker */}
+              <Controller
+                control={studentForm.control}
+                name="imageUrl"
+                render={({ field }) => (
+                  <div className="flex items-center gap-4">
+                    <div className="relative">
+                      {field.value ? (
+                        <Image
+                          src={field.value}
+                          alt="Student"
+                          width={80}
+                          height={80}
+                          className="w-20 h-20 rounded-full object-cover border-2 border-white shadow"
+                        />
+                      ) : (
+                        <div className="w-20 h-20 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-xs">
+                          No photo
+                        </div>
+                      )}
+                      {field.value && (
+                        <button
+                          type="button"
+                          onClick={() => field.onChange('')}
+                          className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center shadow"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+                    <div>
+                      <input
+                        ref={fileRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0]
+                          if (f) handleImagePick(f)
+                          e.target.value = ''
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => fileRef.current?.click()}
+                        disabled={uploadImage.isPending}
+                      >
+                        <Upload className="mr-2 h-4 w-4" />
+                        {uploadImage.isPending ? 'Uploading…' : field.value ? 'Change Photo' : 'Upload Photo'}
+                      </Button>
+                      <p className="text-xs text-muted-foreground mt-1">PNG/JPG, max 5MB</p>
+                    </div>
+                  </div>
+                )}
+              />
+
               <div>
-                <label className="block text-sm text-gray-600 mb-1">Room Number</label>
-                <input
-                  required
-                  value={form.number}
-                  onChange={(e) => setForm({ ...form, number: e.target.value })}
-                  placeholder="e.g. 101"
-                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                  <span className="w-1 h-4 bg-blue-600 rounded" />
+                  Personal Info
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <FormField label="Roll No" required error={studentForm.formState.errors.rollNo?.message}>
+                    <Input placeholder="e.g. 2024-CS-101" {...studentForm.register('rollNo')} />
+                  </FormField>
+                  <FormField label="Student Name" required error={studentForm.formState.errors.name?.message}>
+                    <Input placeholder="Full name" {...studentForm.register('name')} />
+                  </FormField>
+                  <FormField label="Father Name">
+                    <Input placeholder="Father's full name" {...studentForm.register('fatherName')} />
+                  </FormField>
+                  <FormField label="CNIC Number">
+                    <Input placeholder="xxxxx-xxxxxxx-x" {...studentForm.register('cnic')} />
+                  </FormField>
+                </div>
               </div>
+
               <div>
-                <label className="block text-sm text-gray-600 mb-1">Floor</label>
-                <select
-                  required
-                  value={form.floor}
-                  onChange={(e) => setForm({ ...form, floor: e.target.value })}
-                  className="w-full border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="" disabled>Select floor</option>
-                  <option value="1">1st Floor</option>
-                  <option value="2">2nd Floor</option>
-                  <option value="3">3rd Floor</option>
-                  <option value="4">4th Floor</option>
-                  <option value="5">5th Floor</option>
-                </select>
+                <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                  <span className="w-1 h-4 bg-blue-600 rounded" />
+                  Contact
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <FormField label="Contact Number">
+                    <Input placeholder="03xx-xxxxxxx" {...studentForm.register('phone')} />
+                  </FormField>
+                  <FormField label="Guardian Number">
+                    <Input placeholder="03xx-xxxxxxx" {...studentForm.register('guardPhone')} />
+                  </FormField>
+                  <div className="sm:col-span-2">
+                    <Label>Address</Label>
+                    <Textarea
+                      rows={2}
+                      placeholder="Home address"
+                      className="mt-2"
+                      {...studentForm.register('address')}
+                    />
+                  </div>
+                </div>
               </div>
+
               <div>
-                <label className="block text-sm text-gray-600 mb-1">Capacity</label>
-                <select
-                  required
-                  value={form.capacity}
-                  onChange={(e) => setForm({ ...form, capacity: e.target.value })}
-                  className="w-full border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="2">2 Seater</option>
-                  <option value="3">3 Seater</option>
-                  <option value="4">4 Seater</option>
-                </select>
+                <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                  <span className="w-1 h-4 bg-blue-600 rounded" />
+                  Fees
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <FormField label="Total Fee">
+                    <Controller
+                      control={studentForm.control}
+                      name="feeTotal"
+                      render={({ field }) => (
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          placeholder="e.g. 20000"
+                          value={field.value ?? ''}
+                          onChange={(e) => {
+                            const v = e.target.value
+                            field.onChange(v === '' ? null : Number(v))
+                          }}
+                        />
+                      )}
+                    />
+                  </FormField>
+                  <FormField label="Amount Paid">
+                    <Controller
+                      control={studentForm.control}
+                      name="feePaid"
+                      render={({ field }) => (
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          placeholder="0"
+                          value={field.value ?? 0}
+                          onChange={(e) => field.onChange(Number(e.target.value || 0))}
+                        />
+                      )}
+                    />
+                  </FormField>
+                </div>
+                <FeeStatusPreview form={studentForm} />
               </div>
-              {error && <p className="text-sm text-red-600">{error}</p>}
-              <div className="flex justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setOpen(false)}
-                  className="px-4 py-2 rounded-lg text-black bg-gray-200 hover:bg-gray-300"
-                >
+
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setStudentDialog(null)}>
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
-                  disabled={createRoom.isPending}
-                  className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+                  disabled={createStudent.isPending || updateStudent.isPending}
+                  className="bg-linear-to-r from-emerald-600 to-teal-600"
                 >
-                  {createRoom.isPending ? 'Saving...' : 'Save'}
-                </button>
-              </div>
+                  {createStudent.isPending || updateStudent.isPending
+                    ? 'Saving…'
+                    : studentDialog.mode === 'edit'
+                      ? 'Update Student'
+                      : 'Save Student'}
+                </Button>
+              </DialogFooter>
             </form>
-          </div>
-        </div>
-      )}
+          </DialogContent>
+        )}
+      </Dialog>
 
-      {activeRoom && !addOpen && !viewStudent && (
-        <RoomModal
-          room={activeRoom}
-          onClose={closeRoom}
-          onAdd={() => setAddOpen(true)}
-          onView={setViewStudent}
-          onRemoveStudent={removeStudent}
-          initials={initials}
-        />
-      )}
+      {/* View Student Dialog */}
+      <Dialog open={!!viewStudent} onOpenChange={(o) => !o && setViewStudent(null)}>
+        {viewStudent && (
+          <DialogContent className="w-[95vw] max-w-lg p-0 overflow-hidden">
+            <div className="bg-linear-to-br from-indigo-600 via-blue-600 to-cyan-600 text-white p-6 text-center">
+              {viewStudent.imageUrl ? (
+                <Image
+                  src={viewStudent.imageUrl}
+                  alt={viewStudent.name}
+                  width={80}
+                  height={80}
+                  className="w-20 h-20 mx-auto rounded-full object-cover border-4 border-white/30 mb-3"
+                />
+              ) : (
+                <div className="w-20 h-20 mx-auto rounded-full bg-white/20 flex items-center justify-center text-2xl font-bold mb-3">
+                  {initials(viewStudent.name)}
+                </div>
+              )}
+              <DialogHeader>
+                <DialogTitle className="text-white text-2xl">{viewStudent.name}</DialogTitle>
+                <DialogDescription className="text-blue-100">
+                  Roll #{viewStudent.rollNo}
+                </DialogDescription>
+              </DialogHeader>
+              {(() => {
+                const fb = feeBadge(
+                  computeFeeStatus(viewStudent.feePaid, viewStudent.feeTotal),
+                )
+                return (
+                  <Badge className="mt-2" variant={fb.variant}>
+                    Fees: {fb.label}
+                  </Badge>
+                )
+              })()}
+            </div>
+            <div className="p-6 space-y-1">
+              <InfoRow label="Father Name" value={viewStudent.fatherName} />
+              <InfoRow label="CNIC" value={viewStudent.cnic} />
+              <InfoRow label="Contact" value={viewStudent.phone} />
+              <InfoRow
+                label="Fees"
+                value={
+                  viewStudent.feeTotal
+                    ? `${viewStudent.feePaid} / ${viewStudent.feeTotal}`
+                    : viewStudent.feePaid
+                      ? String(viewStudent.feePaid)
+                      : null
+                }
+              />
+              {viewStudent.feeTotal ? (
+                <InfoRow
+                  label="Remaining"
+                  value={String(Math.max(viewStudent.feeTotal - viewStudent.feePaid, 0))}
+                />
+              ) : null}
+              <InfoRow label="Guardian" value={viewStudent.guardPhone} />
+              <InfoRow label="Address" value={viewStudent.address} />
+            </div>
+            <DialogFooter className="p-4 border-t gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setStudentDialog({ mode: 'edit', student: viewStudent })
+                  setViewStudent(null)
+                }}
+              >
+                <Pencil className="mr-2 h-4 w-4" /> Edit
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() =>
+                  setDeleteTarget({ kind: 'student', id: viewStudent.id, label: viewStudent.name })
+                }
+              >
+                <Trash2 className="mr-2 h-4 w-4" /> Delete
+              </Button>
+              <Button onClick={() => setViewStudent(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        )}
+      </Dialog>
 
-      {activeRoom && addOpen && (
-        <AddStudentModal
-          room={activeRoom}
-          form={studentForm}
-          setForm={setStudentForm}
-          onCancel={() => setAddOpen(false)}
-          onSubmit={addStudent}
-          error={studentError}
-          saving={createStudent.isPending}
-        />
-      )}
+      {/* Delete confirmation */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete{' '}
+              <span className="font-semibold text-foreground">
+                {deleteTarget?.label}
+              </span>
+              . This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  )
+}
 
-      {viewStudent && (
-        <ViewStudentModal
-          student={viewStudent}
-          onClose={() => setViewStudent(null)}
-          initials={initials}
-        />
+const FormField = ({
+  label,
+  required,
+  error,
+  children,
+}: {
+  label: string
+  required?: boolean
+  error?: string
+  children: React.ReactNode
+}) => (
+  <div className="space-y-2">
+    <Label>
+      {label}
+      {required && <span className="text-red-500 ml-0.5">*</span>}
+    </Label>
+    {children}
+    {error && <p className="text-xs text-red-600">{error}</p>}
+  </div>
+)
+
+const FeeStatusPreview = ({
+  form,
+}: {
+  form: ReturnType<typeof useForm<StudentCreateInput>>
+}) => {
+  const feeTotal = useWatch({ control: form.control, name: 'feeTotal' })
+  const feePaid = useWatch({ control: form.control, name: 'feePaid' })
+  const status = computeFeeStatus(Number(feePaid) || 0, feeTotal ?? null)
+  const fb = feeBadge(status)
+  const total = Number(feeTotal) || 0
+  const paid = Number(feePaid) || 0
+  const remaining = Math.max(total - paid, 0)
+  return (
+    <div className="mt-3 flex items-center gap-3 text-sm bg-muted/30 rounded-lg px-3 py-2">
+      <span className="text-muted-foreground">Status:</span>
+      <Badge variant={fb.variant}>{fb.label}</Badge>
+      {total > 0 && (
+        <span className="text-muted-foreground ml-auto">
+          Remaining: <span className="font-medium text-foreground">{remaining}</span>
+        </span>
       )}
     </div>
   )
 }
 
-const RoomModal = ({
-  room,
-  onClose,
-  onAdd,
-  onView,
-  onRemoveStudent,
-  initials,
-}: {
-  room: RoomWithStudents
-  onClose: () => void
-  onAdd: () => void
-  onView: (s: StudentSummary) => void
-  onRemoveStudent: (id: number) => void
-  initials: (name: string) => string
-}) => (
-  <div className="fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm z-50 p-4">
-    <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
-      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6 flex items-start justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">Room {room.number}</h2>
-          <p className="text-sm text-blue-100 mt-1">
-            Floor {room.floor} • {room.capacity} Seater • {room.students.length}/{room.capacity} occupied
-          </p>
-        </div>
-        <button onClick={onClose} className="text-white/80 hover:text-white text-3xl leading-none">×</button>
-      </div>
-
-      <div className="p-6 space-y-3 overflow-y-auto">
-        {Array.from({ length: room.capacity }).map((_, i) => {
-          const s = room.students[i]
-          return (
-            <div
-              key={i}
-              className={`rounded-2xl border p-4 transition ${
-                s ? 'bg-gradient-to-br from-gray-50 to-white border-gray-200 hover:shadow-md' : 'bg-white border-dashed border-gray-300'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {s ? (
-                    <div className="w-11 h-11 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center font-semibold">
-                      {initials(s.name)}
-                    </div>
-                  ) : (
-                    <div className="w-11 h-11 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center text-lg">
-                      {i + 1}
-                    </div>
-                  )}
-                  <div>
-                    {s ? (
-                      <>
-                        <p className="font-semibold text-gray-800">{s.name}</p>
-                        <p className="text-xs text-gray-500">
-                          Roll #{s.rollNo}
-                          {s.fatherName ? ` • S/O ${s.fatherName}` : ''}
-                        </p>
-                      </>
-                    ) : (
-                      <>
-                        <p className="font-medium text-gray-500">Bed {i + 1}</p>
-                        <p className="text-xs text-gray-400">Empty</p>
-                      </>
-                    )}
-                  </div>
-                </div>
-                {s && (
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`text-xs px-2 py-0.5 rounded-full ${
-                        s.feesPaid ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
-                      }`}
-                    >
-                      {s.feesPaid ? 'Paid' : 'Pending'}
-                    </span>
-                    <button onClick={() => onView(s)} className="text-xs text-blue-600 hover:underline">View</button>
-                    <button onClick={() => onRemoveStudent(s.id)} className="text-xs text-red-600 hover:underline">Remove</button>
-                  </div>
-                )}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-
-      <div className="p-6 border-t bg-gray-50">
-        {room.students.length >= room.capacity ? (
-          <p className="text-sm text-center text-red-600 bg-red-50 rounded-lg py-3 border border-red-100">
-            🚫 This room is full ({room.capacity}/{room.capacity}).
-          </p>
-        ) : (
-          <button
-            onClick={onAdd}
-            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-xl hover:shadow-lg hover:from-blue-700 hover:to-indigo-700 transition font-medium"
-          >
-            + Add Student to This Room
-          </button>
-        )}
-      </div>
-    </div>
-  </div>
-)
-
-const AddStudentModal = ({
-  room,
-  form,
-  setForm,
-  onCancel,
-  onSubmit,
-  error,
-  saving,
-}: {
-  room: RoomWithStudents
-  form: typeof emptyStudent
-  setForm: (f: typeof emptyStudent) => void
-  onCancel: () => void
-  onSubmit: (e: React.FormEvent) => void
-  error: string | null
-  saving: boolean
-}) => (
-  <div className="fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm z-50 p-4">
-    <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
-      <div className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white p-6 flex items-start justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">Add Student</h2>
-          <p className="text-sm text-emerald-100 mt-1">
-            Room {room.number} • Bed {room.students.length + 1} of {room.capacity}
-          </p>
-        </div>
-        <button onClick={onCancel} className="text-white/80 hover:text-white text-3xl leading-none">×</button>
-      </div>
-
-      <form onSubmit={onSubmit} className="p-6 space-y-5 overflow-y-auto">
-        <div>
-          <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-            <span className="w-1 h-4 bg-blue-600 rounded" />
-            Personal Info
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="Roll No" required value={form.rollNo} onChange={(v) => setForm({ ...form, rollNo: v })} placeholder="e.g. 2024-CS-101" />
-            <Field label="Student Name" required value={form.name} onChange={(v) => setForm({ ...form, name: v })} placeholder="Full name" />
-            <Field label="Father Name" value={form.fatherName} onChange={(v) => setForm({ ...form, fatherName: v })} placeholder="Father's full name" />
-            <Field label="CNIC Number" value={form.cnic} onChange={(v) => setForm({ ...form, cnic: v })} placeholder="xxxxx-xxxxxxx-x" />
-          </div>
-        </div>
-
-        <div>
-          <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-            <span className="w-1 h-4 bg-blue-600 rounded" />
-            Contact
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="Contact Number" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} placeholder="03xx-xxxxxxx" />
-            <Field label="Guardian Number" value={form.guardPhone} onChange={(v) => setForm({ ...form, guardPhone: v })} placeholder="03xx-xxxxxxx" />
-            <div className="sm:col-span-2">
-              <label className="block text-sm text-gray-600 mb-1">Address</label>
-              <textarea
-                rows={2}
-                value={form.address}
-                onChange={(e) => setForm({ ...form, address: e.target.value })}
-                placeholder="Home address"
-                className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-              />
-            </div>
-          </div>
-        </div>
-
-        <label className="flex items-center gap-3 bg-gray-50 rounded-lg p-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={form.feesPaid}
-            onChange={(e) => setForm({ ...form, feesPaid: e.target.checked })}
-            className="w-4 h-4"
-          />
-          <span className="text-sm text-gray-700">Fees paid</span>
-        </label>
-
-        {error && (
-          <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{error}</p>
-        )}
-
-        <div className="flex justify-end gap-3 pt-2 border-t">
-          <button type="button" onClick={onCancel} className="px-5 py-2 rounded-lg text-gray-700 bg-gray-200 hover:bg-gray-300">Cancel</button>
-          <button
-            type="submit"
-            disabled={saving}
-            className="px-5 py-2 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:shadow-lg disabled:opacity-60"
-          >
-            {saving ? 'Saving...' : 'Save Student'}
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-)
-
-const ViewStudentModal = ({
-  student,
-  onClose,
-  initials,
-}: {
-  student: StudentSummary
-  onClose: () => void
-  initials: (name: string) => string
-}) => (
-  <div className="fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm z-[60] p-4">
-    <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden">
-      <div className="bg-gradient-to-br from-indigo-600 via-blue-600 to-cyan-600 text-white p-6 text-center">
-        <div className="w-20 h-20 mx-auto rounded-full bg-white/20 backdrop-blur flex items-center justify-center text-2xl font-bold mb-3">
-          {initials(student.name)}
-        </div>
-        <h2 className="text-2xl font-bold">{student.name}</h2>
-        <p className="text-sm text-blue-100">Roll #{student.rollNo}</p>
-        <span className={`inline-block mt-2 text-xs px-3 py-1 rounded-full ${student.feesPaid ? 'bg-green-500/30 text-white' : 'bg-amber-400/30 text-white'}`}>
-          Fees: {student.feesPaid ? 'Paid' : 'Pending'}
-        </span>
-      </div>
-      <div className="p-6 space-y-3">
-        <InfoRow label="Father Name" value={student.fatherName} />
-        <InfoRow label="CNIC" value={student.cnic} />
-        <InfoRow label="Contact" value={student.phone} />
-        <InfoRow label="Guardian" value={student.guardPhone} />
-        <InfoRow label="Address" value={student.address} />
-      </div>
-      <div className="p-4 border-t flex justify-end">
-        <button onClick={onClose} className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700">Close</button>
-      </div>
-    </div>
-  </div>
-)
-
-const Field = ({
-  label,
-  value,
-  onChange,
-  placeholder,
-  required,
-}: {
-  label: string
-  value: string
-  onChange: (v: string) => void
-  placeholder?: string
-  required?: boolean
-}) => (
-  <div>
-    <label className="block text-sm text-gray-600 mb-1">
-      {label}
-      {required && <span className="text-red-500 ml-0.5">*</span>}
-    </label>
-    <input
-      required={required}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-    />
-  </div>
-)
-
 const InfoRow = ({ label, value }: { label: string; value: string | null }) => (
   <div className="flex justify-between items-start gap-4 py-2 border-b last:border-0">
-    <span className="text-sm text-gray-500">{label}</span>
-    <span className="text-sm font-medium text-gray-800 text-right">{value || '—'}</span>
+    <span className="text-sm text-muted-foreground">{label}</span>
+    <span className="text-sm font-medium text-right">{value || '—'}</span>
   </div>
 )
 

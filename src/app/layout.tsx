@@ -1,6 +1,7 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Sidebar from "./components/sidebar";
+import { ThemeScript } from "./components/theme-toggle";
 import { QueryProvider } from "@/lib/query-provider";
 
 const geistSans = Geist({
@@ -26,12 +27,16 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full bg-gray-100">
+      <head>
+        <ThemeScript />
+      </head>
+      <body className="min-h-full bg-background text-foreground">
         <QueryProvider>
           <Sidebar />
-          <main className="ml-64 min-h-screen">{children}</main>
+          <main className="lg:ml-64 min-h-screen pt-14 lg:pt-0">{children}</main>
         </QueryProvider>
       </body>
     </html>

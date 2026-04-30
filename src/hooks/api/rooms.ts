@@ -1,6 +1,6 @@
 'use client'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { RoomCreateInput } from '@/lib/schemas/room'
+import type { RoomCreateInput, RoomUpdateInput } from '@/lib/schemas/room'
 
 export type StudentSummary = {
   id: number
@@ -11,8 +11,10 @@ export type StudentSummary = {
   phone: string | null
   guardPhone: string | null
   cnic: string | null
+  imageUrl: string | null
   course: string | null
-  feesPaid: boolean
+  feeTotal: number | null
+  feePaid: number
 }
 
 export type RoomWithStudents = {
@@ -48,6 +50,25 @@ export const useCreateRoom = () => {
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         throw new Error(data.error || 'Failed to create room')
+      }
+      return res.json()
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ROOMS_KEY }),
+  })
+}
+
+export const useUpdateRoom = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: RoomUpdateInput }) => {
+      const res = await fetch(`/api/rooms/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || 'Failed to update room')
       }
       return res.json()
     },

@@ -1,18 +1,18 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { studentUpdateSchema } from '@/lib/schemas/student'
+import { menuItemUpdateSchema } from '@/lib/schemas/menu'
 
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params
-  const studentId = Number(id)
-  if (!Number.isFinite(studentId)) {
+  const itemId = Number(id)
+  if (!Number.isFinite(itemId)) {
     return NextResponse.json({ error: 'Invalid id' }, { status: 400 })
   }
   const body = await request.json().catch(() => ({}))
-  const parsed = studentUpdateSchema.safeParse(body)
+  const parsed = menuItemUpdateSchema.safeParse(body)
   if (!parsed.success) {
     return NextResponse.json(
       { error: parsed.error.issues[0]?.message || 'Invalid input' },
@@ -20,13 +20,10 @@ export async function PATCH(
     )
   }
   try {
-    const student = await prisma.student.update({
-      where: { id: studentId },
-      data: parsed.data,
-    })
-    return NextResponse.json(student)
+    const item = await prisma.menuItem.update({ where: { id: itemId }, data: parsed.data })
+    return NextResponse.json(item)
   } catch {
-    return NextResponse.json({ error: 'Failed to update student' }, { status: 409 })
+    return NextResponse.json({ error: 'Failed to update menu' }, { status: 409 })
   }
 }
 
@@ -35,10 +32,10 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params
-  const studentId = Number(id)
-  if (!Number.isFinite(studentId)) {
+  const itemId = Number(id)
+  if (!Number.isFinite(itemId)) {
     return NextResponse.json({ error: 'Invalid id' }, { status: 400 })
   }
-  await prisma.student.delete({ where: { id: studentId } })
+  await prisma.menuItem.delete({ where: { id: itemId } })
   return NextResponse.json({ ok: true })
 }
