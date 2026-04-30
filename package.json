@@ -2,13 +2,38 @@
   "name": "hostel-management",
   "version": "0.1.0",
   "private": true,
+  "main": "electron/main.js",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "db:seed": "tsx prisma/seed.ts",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "build:next": "next build",
+    "build:copy": "node build.js",
+    "build:exe": "npm run build:next && npm run build:copy && electron-builder"
+  },
+  "build": {
+    "appId": "com.hostel.management",
+    "productName": "Hostel Management",
+    "files": [
+      "electron/**/*",
+      ".next/standalone/**/*"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    },
+    "directories": {
+      "output": "dist"
+    },
+    "afterPack": "electron/afterPack.js",
+    "npmRebuild": true
   },
   "dependencies": {
     "@base-ui/react": "^1.4.0",
@@ -40,6 +65,8 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "dotenv": "^17.4.2",
+    "electron": "^41.3.0",
+    "electron-builder": "^26.8.1",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
     "tailwindcss": "^4",
