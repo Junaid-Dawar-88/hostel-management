@@ -1,17 +1,20 @@
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import bcrypt from "bcryptjs";
 
 const adapter = new PrismaBetterSqlite3({ url: "file:./dev.db" });
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  await prisma.warden.upsert({
+  const hashedPassword = await bcrypt.hash("changeme", 10);
+
+  const warden = await prisma.warden.upsert({
     where: { email: "warden@hostel.local" },
     update: {},
     create: {
       name: "Default Warden",
       email: "warden@hostel.local",
-      password: "changeme",
+      password: hashedPassword,
     },
   });
 
@@ -23,9 +26,9 @@ async function main() {
 
   for (const r of rooms) {
     await prisma.room.upsert({
-      where: { number: r.number },
+      where: { wardenId_number: { wardenId: warden.id, number: r.number } },
       update: {},
-      create: r,
+      create: { ...r, wardenId: warden.id },
     });
   }
   console.log("Seeded.");

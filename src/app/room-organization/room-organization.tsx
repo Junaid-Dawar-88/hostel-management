@@ -247,116 +247,169 @@ const RoomOrganization = () => {
   const initials = (name: string) =>
     name.split(' ').map((n) => n[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
 
+
   return (
     <div>
-      <div className="flex flex-wrap justify-between items-center gap-3 mb-6">
+      {/* ── Page header ── */}
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Rooms</h1>
-          <p className="text-sm text-muted-foreground">
-            {isLoading
-              ? 'Loading…'
-              : `${filteredRooms.length} of ${rooms.length} shown`}
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Rooms</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+            {isLoading ? 'Loading…' : `${filteredRooms.length} of ${rooms.length} rooms`}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-          <div className="flex rounded-lg border p-0.5 bg-background overflow-x-auto">
-            {(['all', 'available', 'full', 'empty'] as RoomFilter[]).map((f) => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`px-3 py-1.5 text-xs rounded-md capitalize transition whitespace-nowrap ${
-                  filter === f
-                    ? 'bg-blue-600 text-white shadow'
-                    : 'text-muted-foreground hover:bg-accent'
-                }`}
-              >
-                {f}
-              </button>
-            ))}
-          </div>
-          <div className="relative flex-1 sm:flex-none min-w-0">
-            <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search room or student…"
-              className="pl-9 w-full sm:w-64"
-            />
-          </div>
-          <Button onClick={() => setRoomDialog({ mode: 'create' })} className="whitespace-nowrap">+ Create Room</Button>
+        <Button
+          onClick={() => setRoomDialog({ mode: 'create' })}
+          className="bg-blue-600 hover:bg-blue-700 text-white shadow-md"
+        >
+          + Create Room
+        </Button>
+      </div>
+
+      {/* ── Filter + Search ── */}
+      <div className="flex flex-wrap items-center gap-3 mb-7">
+        <div className="flex rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-1 gap-0.5">
+          {(['all', 'available', 'full', 'empty'] as RoomFilter[]).map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`px-4 py-1.5 text-xs rounded-md capitalize font-medium transition-all ${
+                filter === f
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+              }`}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
+        <div className="relative flex-1 min-w-48">
+          <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search room or student…"
+            className="pl-9"
+          />
         </div>
       </div>
 
+      {/* ── States ── */}
       {isLoading ? (
-        <Card>
-          <CardContent className="p-10 text-center text-muted-foreground">Loading rooms…</CardContent>
-        </Card>
+        <div className="flex flex-col items-center justify-center py-24">
+          <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mb-3" />
+          <p className="text-sm text-gray-400">Loading rooms…</p>
+        </div>
       ) : rooms.length === 0 ? (
-        <Card>
-          <CardContent className="p-10 text-center text-muted-foreground">
-            No rooms yet. Click <span className="font-medium">Create Room</span> to add one.
-          </CardContent>
-        </Card>
+        <div className="flex flex-col items-center justify-center py-24 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4 text-3xl">🏠</div>
+          <p className="text-gray-700 dark:text-gray-300 font-semibold">No rooms yet</p>
+          <p className="text-sm text-gray-400 mt-1">Click <span className="text-blue-600 font-medium">+ Create Room</span> to get started.</p>
+        </div>
       ) : filteredRooms.length === 0 ? (
-        <Card>
-          <CardContent className="p-10 text-center text-muted-foreground">
-            No rooms match your filters.
-          </CardContent>
-        </Card>
+        <div className="flex flex-col items-center justify-center py-24 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4">
+            <Search className="w-7 h-7 text-gray-400" />
+          </div>
+          <p className="text-gray-700 dark:text-gray-300 font-semibold">No rooms match</p>
+          <p className="text-sm text-gray-400 mt-1">Try adjusting your filters or search term.</p>
+        </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           {filteredRooms.map((r) => {
-            const occupancy = r.students.length
-            const full = occupancy >= r.capacity
+            const occ = r.students.length
+            const full = occ >= r.capacity
+            const empty = occ === 0
+
+            const cardGradient = full
+              ? 'linear-gradient(135deg, #ef4444 0%, #e11d48 100%)'
+              : empty
+                ? 'linear-gradient(135deg, #94a3b8 0%, #64748b 100%)'
+                : 'linear-gradient(135deg, #3b82f6 0%, #4f46e5 100%)'
+
+            const avatarGradient = full
+              ? 'linear-gradient(135deg, #f87171, #fb7185)'
+              : 'linear-gradient(135deg, #60a5fa, #818cf8)'
+
             return (
-              <Card
+              <div
                 key={r.id}
                 onClick={() => setActiveRoomId(r.id)}
-                className="cursor-pointer hover:border-blue-300 hover:shadow-md transition relative"
+                className="cursor-pointer rounded-2xl overflow-hidden bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200"
               >
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle className="text-lg">Room {r.number}</CardTitle>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Floor {r.floor} • {r.capacity} Seater
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                      <Badge variant={full ? 'destructive' : occupancy === 0 ? 'secondary' : 'default'}>
-                        {full ? 'Full' : occupancy === 0 ? 'Empty' : 'Available'}
-                      </Badge>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger className="inline-flex items-center justify-center h-8 w-8 rounded-md hover:bg-accent">
-                          <MoreVertical className="h-4 w-4" />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => setRoomDialog({ mode: 'edit', id: r.id })}>
-                            <Pencil className="mr-2 h-4 w-4" /> Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-red-600 focus:text-red-600"
-                            onClick={() =>
-                              setDeleteTarget({ kind: 'room', id: r.id, label: `Room ${r.number}` })
-                            }
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" /> Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    Occupancy:{' '}
-                    <span className="font-medium text-foreground">
-                      {occupancy}/{r.capacity}
+                {/* Coloured top */}
+                <div style={{ background: cardGradient }} className="p-4 text-white">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                      Floor {r.floor}
+                    </p>
+                    <span
+                      className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
+                      style={{ background: 'rgba(255,255,255,0.22)' }}
+                    >
+                      {full ? 'Full' : empty ? 'Empty' : 'Available'}
                     </span>
-                  </p>
-                </CardContent>
-              </Card>
+                  </div>
+                  <h2 className="text-2xl font-extrabold leading-none">{r.number}</h2>
+                  <div className="mt-3 space-y-1">
+                    <div className="flex gap-1">
+                      {Array.from({ length: r.capacity }).map((_, i) => (
+                        <div
+                          key={i}
+                          className="h-1 flex-1 rounded-full"
+                          style={{ background: i < occ ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.25)' }}
+                        />
+                      ))}
+                    </div>
+                    <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.7)' }}>
+                      {occ}/{r.capacity} beds
+                    </p>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="flex items-center justify-between px-3 py-2.5 bg-white dark:bg-gray-900">
+                  {empty ? (
+                    <span className="text-xs text-gray-400 italic">No students</span>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      <div className="flex -space-x-1.5">
+                        {r.students.slice(0, 3).map((s, idx) => (
+                          <div
+                            key={s.id}
+                            style={{ background: avatarGradient, zIndex: 3 - idx }}
+                            className="relative w-6 h-6 rounded-full text-white text-[9px] font-bold flex items-center justify-center border-2 border-white dark:border-gray-900"
+                          >
+                            {initials(s.name)}
+                          </div>
+                        ))}
+                      </div>
+                      {r.students.length > 3 && (
+                        <span className="text-xs text-gray-400 font-medium">+{r.students.length - 3}</span>
+                      )}
+                    </div>
+                  )}
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger className="inline-flex items-center justify-center h-7 w-7 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                        <MoreVertical className="h-4 w-4 text-gray-400" />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => setRoomDialog({ mode: 'edit', id: r.id })}>
+                          <Pencil className="mr-2 h-4 w-4" /> Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          variant="destructive"
+                          onClick={() => setDeleteTarget({ kind: 'room', id: r.id, label: `Room ${r.number}` })}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" /> Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </div>
+              </div>
             )
           })}
         </div>
@@ -580,190 +633,262 @@ const RoomOrganization = () => {
       {/* Student Create/Edit Dialog */}
       <Dialog open={!!studentDialog} onOpenChange={(o) => !o && setStudentDialog(null)}>
         {studentDialog && (
-          <DialogContent className="w-[95vw] max-w-4xl sm:max-w-4xl p-0 overflow-hidden">
-            <div className="bg-linear-to-r from-emerald-600 to-teal-600 text-white p-6">
-              <DialogHeader>
-                <DialogTitle className="text-white text-2xl">
-                  {studentDialog.mode === 'edit' ? 'Edit Student' : 'Add Student'}
-                </DialogTitle>
-                <DialogDescription className="text-emerald-100">
-                  {studentDialog.mode === 'edit'
-                    ? `Update ${studentDialog.student.name}'s details`
-                    : activeRoom
-                      ? `Room ${activeRoom.number} • Bed ${activeRoom.students.length + 1} of ${activeRoom.capacity}`
-                      : ''}
-                </DialogDescription>
-              </DialogHeader>
-            </div>
+          <DialogContent
+            showCloseButton={false}
+            className="p-0 overflow-hidden"
+            style={{ width: '92vw', maxWidth: 860 }}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
 
-            <form
-              onSubmit={studentForm.handleSubmit(onSubmitStudent)}
-              className="p-6 space-y-5 max-h-[70vh] overflow-y-auto"
-            >
-              {/* Image picker */}
-              <Controller
-                control={studentForm.control}
-                name="imageUrl"
-                render={({ field }) => (
-                  <div className="flex items-center gap-4">
-                    <div className="relative">
-                      {field.value ? (
-                        <Image
-                          src={field.value}
-                          alt="Student"
-                          width={80}
-                          height={80}
-                          className="w-20 h-20 rounded-full object-cover border-2 border-white shadow"
+              {/* ── Header ── */}
+              <div style={{
+                background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                padding: '18px 24px',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                flexShrink: 0,
+              }}>
+                <div>
+                  <h2 style={{ color: '#fff', fontSize: 17, fontWeight: 700, margin: 0, letterSpacing: '-0.02em' }}>
+                    {studentDialog.mode === 'edit' ? 'Edit Student' : 'Add New Student'}
+                  </h2>
+                  <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: '3px 0 0' }}>
+                    {studentDialog.mode === 'edit'
+                      ? `Editing — ${studentDialog.student.name}`
+                      : activeRoom
+                        ? `Room ${activeRoom.number} · Bed ${activeRoom.students.length + 1} of ${activeRoom.capacity}`
+                        : 'Fill in student details'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setStudentDialog(null)}
+                  style={{
+                    background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8,
+                    width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    cursor: 'pointer', color: '#fff',
+                  }}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              {/* ── Scrollable body ── */}
+              <form
+                id="student-form"
+                onSubmit={studentForm.handleSubmit(onSubmitStudent)}
+                style={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', background: '#F9FAFB' }}
+              >
+                {/* Photo + identity strip */}
+                <Controller
+                  control={studentForm.control}
+                  name="imageUrl"
+                  render={({ field }) => (
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: 16,
+                      padding: '16px 24px', background: '#fff',
+                      borderBottom: '1px solid #E5E7EB',
+                    }}>
+                      <div style={{ position: 'relative', flexShrink: 0 }}>
+                        {field.value ? (
+                          <Image
+                            src={field.value} alt="Student"
+                            width={60} height={60}
+                            style={{ width: 60, height: 60, borderRadius: '50%', objectFit: 'cover', border: '3px solid #D1FAE5' }}
+                          />
+                        ) : (
+                          <div style={{
+                            width: 60, height: 60, borderRadius: '50%',
+                            background: 'linear-gradient(135deg, #D1FAE5, #A7F3D0)',
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                            color: '#059669',
+                          }}>
+                            <Upload style={{ width: 20, height: 20 }} />
+                          </div>
+                        )}
+                        {field.value && (
+                          <button
+                            type="button"
+                            onClick={() => field.onChange('')}
+                            style={{
+                              position: 'absolute', top: -2, right: -2,
+                              background: '#EF4444', color: '#fff', border: 'none',
+                              borderRadius: '50%', width: 18, height: 18,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                            }}
+                          >
+                            <X style={{ width: 10, height: 10 }} />
+                          </button>
+                        )}
+                      </div>
+                      <div>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: '#111827', margin: '0 0 2px' }}>Profile Photo</p>
+                        <p style={{ fontSize: 11, color: '#9CA3AF', margin: '0 0 8px' }}>PNG or JPG · max 5 MB</p>
+                        <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }}
+                          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImagePick(f); e.target.value = '' }}
                         />
-                      ) : (
-                        <div className="w-20 h-20 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-xs">
-                          No photo
-                        </div>
-                      )}
-                      {field.value && (
                         <button
                           type="button"
-                          onClick={() => field.onChange('')}
-                          className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center shadow"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      )}
-                    </div>
-                    <div>
-                      <input
-                        ref={fileRef}
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0]
-                          if (f) handleImagePick(f)
-                          e.target.value = ''
-                        }}
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => fileRef.current?.click()}
-                        disabled={uploadImage.isPending}
-                      >
-                        <Upload className="mr-2 h-4 w-4" />
-                        {uploadImage.isPending ? 'Uploading…' : field.value ? 'Change Photo' : 'Upload Photo'}
-                      </Button>
-                      <p className="text-xs text-muted-foreground mt-1">PNG/JPG, max 5MB</p>
-                    </div>
-                  </div>
-                )}
-              />
-
-              <div>
-                <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                  <span className="w-1 h-4 bg-blue-600 rounded" />
-                  Personal Info
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <FormField label="Roll No" required error={studentForm.formState.errors.rollNo?.message}>
-                    <Input placeholder="e.g. 2024-CS-101" {...studentForm.register('rollNo')} />
-                  </FormField>
-                  <FormField label="Student Name" required error={studentForm.formState.errors.name?.message}>
-                    <Input placeholder="Full name" {...studentForm.register('name')} />
-                  </FormField>
-                  <FormField label="Father Name">
-                    <Input placeholder="Father's full name" {...studentForm.register('fatherName')} />
-                  </FormField>
-                  <FormField label="CNIC Number">
-                    <Input placeholder="xxxxx-xxxxxxx-x" {...studentForm.register('cnic')} />
-                  </FormField>
-                </div>
-              </div>
-
-              <div>
-                <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                  <span className="w-1 h-4 bg-blue-600 rounded" />
-                  Contact
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <FormField label="Contact Number">
-                    <Input placeholder="03xx-xxxxxxx" {...studentForm.register('phone')} />
-                  </FormField>
-                  <FormField label="Guardian Number">
-                    <Input placeholder="03xx-xxxxxxx" {...studentForm.register('guardPhone')} />
-                  </FormField>
-                  <div className="sm:col-span-2">
-                    <Label>Address</Label>
-                    <Textarea
-                      rows={2}
-                      placeholder="Home address"
-                      className="mt-2"
-                      {...studentForm.register('address')}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                  <span className="w-1 h-4 bg-blue-600 rounded" />
-                  Fees
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <FormField label="Total Fee">
-                    <Controller
-                      control={studentForm.control}
-                      name="feeTotal"
-                      render={({ field }) => (
-                        <Input
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          placeholder="e.g. 20000"
-                          value={field.value ?? ''}
-                          onChange={(e) => {
-                            const v = e.target.value
-                            field.onChange(v === '' ? null : Number(v))
+                          onClick={() => fileRef.current?.click()}
+                          disabled={uploadImage.isPending}
+                          style={{
+                            padding: '5px 12px', fontSize: 12, fontWeight: 500,
+                            border: '1px solid #D1D5DB', borderRadius: 6,
+                            background: '#fff', cursor: 'pointer', color: '#374151',
+                            display: 'inline-flex', alignItems: 'center', gap: 6,
                           }}
+                        >
+                          <Upload style={{ width: 12, height: 12 }} />
+                          {uploadImage.isPending ? 'Uploading…' : field.value ? 'Change Photo' : 'Upload Photo'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                />
+
+                {/* ── Sections ── */}
+                <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+                  {/* Section: Academic */}
+                  <SectionCard title="Academic Information" icon="🎓">
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '14px 18px' }}>
+                      <SField label="Roll No" required error={studentForm.formState.errors.rollNo?.message}>
+                        <SInput placeholder="2024-CS-101" {...studentForm.register('rollNo')} />
+                      </SField>
+                      <SField label="Full Name" required error={studentForm.formState.errors.name?.message}>
+                        <SInput placeholder="Student name" {...studentForm.register('name')} />
+                      </SField>
+                      <SField label="Father's Name">
+                        <SInput placeholder="Father's full name" {...studentForm.register('fatherName')} />
+                      </SField>
+                      <SField label="CNIC">
+                        <SInput placeholder="xxxxx-xxxxxxx-x" {...studentForm.register('cnic')} />
+                      </SField>
+                      <SField label="Course">
+                        <SInput placeholder="BS Computer Science" {...studentForm.register('course')} />
+                      </SField>
+                    </div>
+                  </SectionCard>
+
+                  {/* Section: Contact */}
+                  <SectionCard title="Contact Details" icon="📱">
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '14px 18px' }}>
+                      <SField label="Phone">
+                        <SInput placeholder="03xx-xxxxxxx" {...studentForm.register('phone')} />
+                      </SField>
+                      <SField label="Guardian Phone">
+                        <SInput placeholder="03xx-xxxxxxx" {...studentForm.register('guardPhone')} />
+                      </SField>
+                      <SField label="Email">
+                        <SInput type="email" placeholder="email@example.com" {...studentForm.register('email')} />
+                      </SField>
+                      <div style={{ gridColumn: 'span 3' }}>
+                        <SField label="Home Address">
+                          <textarea
+                            rows={2}
+                            placeholder="Full home address"
+                            {...studentForm.register('address')}
+                            style={{
+                              width: '100%', padding: '9px 12px', borderRadius: 8,
+                              border: '1px solid #E5E7EB', fontSize: 13, color: '#111827',
+                              outline: 'none', resize: 'none', boxSizing: 'border-box',
+                              fontFamily: 'inherit', background: '#fff',
+                            }}
+                            onFocus={e => (e.target.style.borderColor = '#059669')}
+                            onBlur={e => (e.target.style.borderColor = '#E5E7EB')}
+                          />
+                        </SField>
+                      </div>
+                    </div>
+                  </SectionCard>
+
+                  {/* Section: Fees */}
+                  <SectionCard title="Fee Information" icon="💰">
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '14px 18px' }}>
+                      <SField label="Total Fee (PKR)">
+                        <Controller
+                          control={studentForm.control}
+                          name="feeTotal"
+                          render={({ field }) => (
+                            <SInput
+                              type="number" min={0} placeholder="e.g. 20000"
+                              value={field.value ?? ''}
+                              onChange={(e) => { const v = e.target.value; field.onChange(v === '' ? null : Number(v)) }}
+                            />
+                          )}
                         />
-                      )}
-                    />
-                  </FormField>
-                  <FormField label="Amount Paid">
-                    <Controller
-                      control={studentForm.control}
-                      name="feePaid"
-                      render={({ field }) => (
-                        <Input
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          placeholder="0"
-                          value={field.value ?? 0}
-                          onChange={(e) => field.onChange(Number(e.target.value || 0))}
+                      </SField>
+                      <SField label="Amount Paid (PKR)">
+                        <Controller
+                          control={studentForm.control}
+                          name="feePaid"
+                          render={({ field }) => (
+                            <SInput
+                              type="number" min={0} placeholder="0"
+                              value={field.value ?? 0}
+                              onChange={(e) => field.onChange(Number(e.target.value || 0))}
+                            />
+                          )}
                         />
-                      )}
-                    />
-                  </FormField>
+                      </SField>
+                      <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                        <FeeStatusPreview form={studentForm} />
+                      </div>
+                    </div>
+                  </SectionCard>
+
                 </div>
-                <FeeStatusPreview form={studentForm} />
+              </form>
+
+              {/* ── Footer ── */}
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '14px 24px', borderTop: '1px solid #E5E7EB',
+                background: '#fff', flexShrink: 0,
+              }}>
+                <p style={{ fontSize: 12, color: '#9CA3AF', margin: 0 }}>
+                  <span style={{ color: '#EF4444' }}>*</span> Required fields
+                </p>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => setStudentDialog(null)}
+                    style={{
+                      padding: '9px 18px', borderRadius: 8, border: '1px solid #E5E7EB',
+                      background: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 500, color: '#374151',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    form="student-form"
+                    disabled={createStudent.isPending || updateStudent.isPending}
+                    style={{
+                      padding: '9px 24px', borderRadius: 8, border: 'none',
+                      background: createStudent.isPending || updateStudent.isPending ? '#6B7280' : '#059669',
+                      cursor: createStudent.isPending || updateStudent.isPending ? 'not-allowed' : 'pointer',
+                      fontSize: 14, fontWeight: 600, color: '#fff',
+                      display: 'flex', alignItems: 'center', gap: 7,
+                    }}
+                  >
+                    {createStudent.isPending || updateStudent.isPending ? (
+                      <>
+                        <span style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />
+                        Saving…
+                      </>
+                    ) : (
+                      <>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                        {studentDialog.mode === 'edit' ? 'Update Student' : 'Save Student'}
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
 
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setStudentDialog(null)}>
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={createStudent.isPending || updateStudent.isPending}
-                  className="bg-linear-to-r from-emerald-600 to-teal-600"
-                >
-                  {createStudent.isPending || updateStudent.isPending
-                    ? 'Saving…'
-                    : studentDialog.mode === 'edit'
-                      ? 'Update Student'
-                      : 'Save Student'}
-                </Button>
-              </DialogFooter>
-            </form>
+            </div>
           </DialogContent>
         )}
       </Dialog>
@@ -878,26 +1003,47 @@ const RoomOrganization = () => {
   )
 }
 
-const FormField = ({
-  label,
-  required,
-  error,
-  children,
-}: {
-  label: string
-  required?: boolean
-  error?: string
-  children: React.ReactNode
-}) => (
-  <div className="space-y-2">
-    <Label>
-      {label}
-      {required && <span className="text-red-500 ml-0.5">*</span>}
-    </Label>
-    {children}
-    {error && <p className="text-xs text-red-600">{error}</p>}
+const SectionCard = ({ title, icon, children }: { title: string; icon: string; children: React.ReactNode }) => (
+  <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E5E7EB', overflow: 'hidden' }}>
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 8,
+      padding: '12px 18px', borderBottom: '1px solid #F3F4F6',
+      background: '#F9FAFB',
+    }}>
+      <span style={{ fontSize: 15 }}>{icon}</span>
+      <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>{title}</span>
+    </div>
+    <div style={{ padding: '16px 18px' }}>{children}</div>
   </div>
 )
+
+const SField = ({ label, required, error, children }: { label: string; required?: boolean; error?: string; children: React.ReactNode }) => (
+  <div>
+    <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#6B7280', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+      {label}{required && <span style={{ color: '#EF4444', marginLeft: 2 }}>*</span>}
+    </label>
+    {children}
+    {error && <p style={{ fontSize: 11, color: '#DC2626', marginTop: 4 }}>{error}</p>}
+  </div>
+)
+
+const SInput = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
+  (props, ref) => (
+    <input
+      ref={ref}
+      {...props}
+      style={{
+        width: '100%', padding: '9px 12px', borderRadius: 8,
+        border: '1px solid #E5E7EB', fontSize: 13, color: '#111827',
+        outline: 'none', background: '#fff', boxSizing: 'border-box',
+        ...(props.style || {}),
+      }}
+      onFocus={e => { e.target.style.borderColor = '#059669'; props.onFocus?.(e) }}
+      onBlur={e => { e.target.style.borderColor = '#E5E7EB'; props.onBlur?.(e) }}
+    />
+  )
+)
+SInput.displayName = 'SInput'
 
 const FeeStatusPreview = ({
   form,
@@ -907,17 +1053,24 @@ const FeeStatusPreview = ({
   const feeTotal = useWatch({ control: form.control, name: 'feeTotal' })
   const feePaid = useWatch({ control: form.control, name: 'feePaid' })
   const status = computeFeeStatus(Number(feePaid) || 0, feeTotal ?? null)
-  const fb = feeBadge(status)
   const total = Number(feeTotal) || 0
   const paid = Number(feePaid) || 0
   const remaining = Math.max(total - paid, 0)
+  const color = status === 'paid' ? '#059669' : status === 'partial' ? '#D97706' : '#DC2626'
+  const bg = status === 'paid' ? '#D1FAE5' : status === 'partial' ? '#FEF3C7' : '#FEE2E2'
+  const label = status === 'paid' ? 'Fully Paid' : status === 'partial' ? 'Partial' : 'Unpaid'
   return (
-    <div className="mt-3 flex items-center gap-3 text-sm bg-muted/30 rounded-lg px-3 py-2">
-      <span className="text-muted-foreground">Status:</span>
-      <Badge variant={fb.variant}>{fb.label}</Badge>
+    <div style={{
+      width: '100%', padding: '10px 14px', borderRadius: 8,
+      background: bg, border: `1px solid ${color}22`,
+      display: 'flex', flexDirection: 'column', gap: 2,
+    }}>
+      <span style={{ fontSize: 11, color, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        {label}
+      </span>
       {total > 0 && (
-        <span className="text-muted-foreground ml-auto">
-          Remaining: <span className="font-medium text-foreground">{remaining}</span>
+        <span style={{ fontSize: 12, color }}>
+          Remaining: <strong>{remaining.toLocaleString()}</strong>
         </span>
       )}
     </div>

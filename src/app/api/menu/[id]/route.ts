@@ -1,11 +1,15 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { menuItemUpdateSchema } from '@/lib/schemas/menu'
+import { getWardenId } from '@/lib/auth'
 
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const wardenId = await getWardenId()
+  if (!wardenId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const { id } = await params
   const itemId = Number(id)
   if (!Number.isFinite(itemId)) {
@@ -20,7 +24,10 @@ export async function PATCH(
     )
   }
   try {
-    const item = await prisma.menuItem.update({ where: { id: itemId }, data: parsed.data })
+    const item = await prisma.menuItem.update({
+      where: { id: itemId, wardenId },
+      data: parsed.data,
+    })
     return NextResponse.json(item)
   } catch {
     return NextResponse.json({ error: 'Failed to update menu' }, { status: 409 })
@@ -31,11 +38,14 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const wardenId = await getWardenId()
+  if (!wardenId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const { id } = await params
   const itemId = Number(id)
   if (!Number.isFinite(itemId)) {
     return NextResponse.json({ error: 'Invalid id' }, { status: 400 })
   }
-  await prisma.menuItem.delete({ where: { id: itemId } })
+  await prisma.menuItem.delete({ where: { id: itemId, wardenId } })
   return NextResponse.json({ ok: true })
 }

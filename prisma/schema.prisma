@@ -8,20 +8,27 @@ datasource db {
 }
 
 model Warden {
-  id        Int      @id @default(autoincrement())
+  id        Int        @id @default(autoincrement())
   name      String
-  email     String   @unique
+  email     String     @unique
   password  String
-  createdAt DateTime @default(now())
+  createdAt DateTime   @default(now())
+  rooms     Room[]
+  students  Student[]
+  menuItems MenuItem[]
 }
 
 model Room {
   id        Int       @id @default(autoincrement())
-  number    String    @unique
+  number    String
   floor     Int
   capacity  Int
+  wardenId  Int
+  warden    Warden    @relation(fields: [wardenId], references: [id], onDelete: Cascade)
   createdAt DateTime  @default(now())
   students  Student[]
+
+  @@unique([wardenId, number])
 }
 
 model MenuItem {
@@ -29,15 +36,17 @@ model MenuItem {
   day       String
   meal      String
   items     String
+  wardenId  Int
+  warden    Warden   @relation(fields: [wardenId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([day, meal])
+  @@unique([wardenId, day, meal])
 }
 
 model Student {
   id         Int      @id @default(autoincrement())
-  rollNo     String   @unique
+  rollNo     String
   name       String
   fatherName String?
   address    String?
@@ -50,6 +59,10 @@ model Student {
   feeTotal   Float?
   feePaid    Float    @default(0)
   roomId     Int?
+  wardenId   Int
+  warden     Warden   @relation(fields: [wardenId], references: [id], onDelete: Cascade)
   room       Room?    @relation(fields: [roomId], references: [id], onDelete: SetNull)
   createdAt  DateTime @default(now())
+
+  @@unique([wardenId, rollNo])
 }

@@ -1,11 +1,15 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { studentUpdateSchema } from '@/lib/schemas/student'
+import { getWardenId } from '@/lib/auth'
 
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const wardenId = await getWardenId()
+  if (!wardenId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const { id } = await params
   const studentId = Number(id)
   if (!Number.isFinite(studentId)) {
@@ -21,7 +25,7 @@ export async function PATCH(
   }
   try {
     const student = await prisma.student.update({
-      where: { id: studentId },
+      where: { id: studentId, wardenId },
       data: parsed.data,
     })
     return NextResponse.json(student)
@@ -34,11 +38,14 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const wardenId = await getWardenId()
+  if (!wardenId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const { id } = await params
   const studentId = Number(id)
   if (!Number.isFinite(studentId)) {
     return NextResponse.json({ error: 'Invalid id' }, { status: 400 })
   }
-  await prisma.student.delete({ where: { id: studentId } })
+  await prisma.student.delete({ where: { id: studentId, wardenId } })
   return NextResponse.json({ ok: true })
 }

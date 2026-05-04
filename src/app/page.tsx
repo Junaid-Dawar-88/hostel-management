@@ -1,56 +1,48 @@
-import React from 'react'
 import Link from 'next/link'
+import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
+import { verifyJWT } from '@/lib/jwt'
+import DashboardCards from '@/app/components/DashboardCards'
+import LandingPage from '@/app/components/LandingPage'
 
 export const dynamic = 'force-dynamic'
 
-const StatCard = ({
-  label,
-  value,
-  accent,
-  sub,
-  href,
-}: {
-  label: string
-  value: string | number
-  accent: string
-  sub?: string
-  href?: string
-}) => {
-  const body = (
-    <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-6 hover:shadow-lg hover:border-blue-300 transition h-full">
-      <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium">{label}</h3>
-      <p className={`text-3xl font-bold mt-2 ${accent}`}>{value}</p>
-      {sub && <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{sub}</p>}
-    </div>
-  )
-  return href ? <Link href={href} className="block">{body}</Link> : body
-}
-
 const Page = async () => {
-  const [totalRooms, totalStudents, feeStats, rooms, recentStudents] =
-    await Promise.all([
-      prisma.room.count(),
-      prisma.student.count(),
-      prisma.student.findMany({ select: { feeTotal: true, feePaid: true } }),
-      prisma.room.findMany({
-        include: { _count: { select: { students: true } } },
-        orderBy: { number: 'asc' },
-      }),
-      prisma.student.findMany({
-        orderBy: { createdAt: 'desc' },
-        take: 5,
-        include: { room: true },
-      }),
-    ])
+  const cookieStore = await cookies()
+  const token = cookieStore.get('auth-token')?.value
+  const warden = token ? await verifyJWT(token) : null
+  if (!warden) return <LandingPage />
+
+  const wardenId = warden.wardenId
+
+  const [totalRooms, totalStudents, rooms, allStudents, recentStudents] = await Promise.all([
+    prisma.room.count({ where: { wardenId } }),
+    prisma.student.count({ where: { wardenId } }),
+    prisma.room.findMany({
+      where: { wardenId },
+      include: { _count: { select: { students: true } } },
+      orderBy: { number: 'asc' },
+    }),
+    prisma.student.findMany({
+      where: { wardenId },
+      select: { id: true, name: true, rollNo: true, feeTotal: true, feePaid: true, room: { select: { number: true } } },
+      orderBy: { name: 'asc' },
+    }),
+    prisma.student.findMany({
+      where: { wardenId },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+      include: { room: true },
+    }),
+  ])
 
   const totalCapacity = rooms.reduce((s, r) => s + r.capacity, 0)
   const occupiedBeds = rooms.reduce((s, r) => s + r._count.students, 0)
   const fullRooms = rooms.filter((r) => r._count.students >= r.capacity).length
   const vacantBeds = Math.max(totalCapacity - occupiedBeds, 0)
   const occupancy = totalCapacity ? Math.round((occupiedBeds / totalCapacity) * 100) : 0
-  const fullyPaid = feeStats.filter((s) => s.feeTotal && s.feePaid >= s.feeTotal).length
-  const partial = feeStats.filter(
+  const fullyPaid = allStudents.filter((s) => s.feeTotal && s.feePaid >= s.feeTotal).length
+  const partial = allStudents.filter(
     (s) => s.feeTotal && s.feePaid > 0 && s.feePaid < s.feeTotal,
   ).length
   const unpaid = totalStudents - fullyPaid - partial
@@ -70,18 +62,22 @@ const Page = async () => {
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        <StatCard href="/rooms" label="Total Rooms" value={totalRooms} accent="text-blue-600" sub={`${fullRooms} full`} />
-        <StatCard href="/students" label="Total Students" value={totalStudents} accent="text-green-600" />
-        <StatCard href="/rooms?filter=available" label="Occupancy" value={`${occupancy}%`} accent="text-indigo-600" sub={`${occupiedBeds}/${totalCapacity} beds`} />
-        <StatCard href="/rooms?filter=empty" label="Vacant Beds" value={vacantBeds} accent="text-orange-500" />
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        <StatCard href="/students?fee=paid" label="Fully Paid" value={fullyPaid} accent="text-emerald-600" />
-        <StatCard href="/students?fee=partial" label="Partial" value={partial} accent="text-amber-500" />
-        <StatCard href="/students?fee=unpaid" label="Unpaid" value={unpaid} accent="text-red-500" />
-      </div>
+      <DashboardCards
+        rooms={rooms}
+        students={allStudents}
+        stats={{
+          totalRooms,
+          totalStudents,
+          occupancy,
+          occupiedBeds,
+          totalCapacity,
+          vacantBeds,
+          fullRooms,
+          fullyPaid,
+          partial,
+          unpaid,
+        }}
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-6 md:col-span-2 lg:col-span-2">
