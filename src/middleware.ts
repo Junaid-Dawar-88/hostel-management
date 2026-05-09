@@ -2,14 +2,21 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { verifyJWT } from '@/lib/jwt'
 
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  if (
-    pathname.startsWith('/login') ||
-    pathname.startsWith('/signup') ||
-    pathname.startsWith('/api/auth')
-  ) {
+  if (pathname.startsWith('/api/auth')) {
+    return NextResponse.next()
+  }
+
+  if (pathname.startsWith('/login') || pathname.startsWith('/signup')) {
+    const token = request.cookies.get('auth-token')?.value
+    if (token) {
+      const payload = await verifyJWT(token)
+      if (payload) {
+        return NextResponse.redirect(new URL('/', request.url))
+      }
+    }
     return NextResponse.next()
   }
 

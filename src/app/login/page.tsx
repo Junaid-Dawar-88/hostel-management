@@ -32,146 +32,287 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', fontFamily: 'var(--font-geist-sans), system-ui, sans-serif' }}>
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap');
+        *, *::before, *::after { box-sizing: border-box; }
 
-      {/* ── Left dark panel ──────────────────────────────────────────── */}
-      <div className="hidden lg:flex" style={{
-        width: '45%', flexDirection: 'column', background: '#0F1623', position: 'relative', overflow: 'hidden',
-      }}>
-        {/* Dot grid texture */}
-        <div style={{
-          position: 'absolute', inset: 0, opacity: 0.04,
-          backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)',
-          backgroundSize: '24px 24px',
-        }} />
-        {/* Glow */}
-        <div style={{
-          position: 'absolute', bottom: 0, left: 0, width: 300, height: 300,
-          background: 'radial-gradient(circle, rgba(79,122,234,0.15) 0%, transparent 70%)',
-        }} />
+        .lgn-page {
+          font-family: 'DM Sans', system-ui, sans-serif;
+          height: 100vh;
+          background: #080C14;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+          position: relative;
+          overflow: hidden;
+        }
 
-        <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', padding: '40px' }}>
-          {/* Logo */}
-          <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
-            <div style={{
-              width: 34, height: 34, borderRadius: 10,
-              background: 'linear-gradient(135deg, #D4A843, #F0C866)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: '#0F1623', fontWeight: 700, fontSize: 14,
-            }}>★</div>
-            <span style={{ color: '#fff', fontWeight: 600, fontSize: 15, letterSpacing: '-0.02em' }}>Life Star Hostel</span>
+        .lgn-grid {
+          position: absolute;
+          inset: 0;
+          background-image:
+            linear-gradient(rgba(212,168,67,0.032) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(212,168,67,0.032) 1px, transparent 1px);
+          background-size: 64px 64px;
+          pointer-events: none;
+        }
+
+        .lgn-glow-a {
+          position: absolute;
+          top: -200px;
+          right: -200px;
+          width: 600px;
+          height: 600px;
+          background: radial-gradient(circle, rgba(212,168,67,0.06) 0%, transparent 68%);
+          pointer-events: none;
+        }
+
+        .lgn-glow-b {
+          position: absolute;
+          bottom: -180px;
+          left: -150px;
+          width: 500px;
+          height: 500px;
+          background: radial-gradient(circle, rgba(212,168,67,0.04) 0%, transparent 68%);
+          pointer-events: none;
+        }
+
+        .lgn-card {
+          position: relative;
+          z-index: 1;
+          background: #FEFCF7;
+          border-radius: 18px;
+          width: 100%;
+          max-width: 520px;
+          padding: 36px 48px 32px;
+          box-shadow:
+            0 0 0 1px rgba(212,168,67,0.1),
+            0 32px 80px rgba(0,0,0,0.55),
+            0 8px 24px rgba(0,0,0,0.3);
+        }
+
+        .lgn-logo {
+          display: flex;
+          align-items: center;
+          gap: 9px;
+          text-decoration: none;
+          margin-bottom: 24px;
+        }
+
+        .lgn-logo-icon {
+          width: 30px;
+          height: 30px;
+          border-radius: 8px;
+          background: linear-gradient(135deg, #D4A843, #F0C866);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #080C14;
+          font-weight: 700;
+          font-size: 13px;
+          flex-shrink: 0;
+        }
+
+        .lgn-logo-text {
+          color: #111;
+          font-weight: 600;
+          font-size: 14px;
+          letter-spacing: -0.02em;
+        }
+
+        .lgn-heading {
+          font-family: 'Cormorant Garamond', Georgia, serif;
+          font-size: 27px;
+          font-weight: 600;
+          color: #080C14;
+          margin: 0 0 5px;
+          letter-spacing: -0.02em;
+          line-height: 1.2;
+        }
+
+        .lgn-sub {
+          font-size: 13.5px;
+          color: #9CA3AF;
+          margin: 0 0 20px;
+          font-weight: 300;
+        }
+
+        .lgn-google {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          padding: 11px 16px;
+          border-radius: 7px;
+          border: 1.5px solid #E9EAEC;
+          background: #fff;
+          cursor: pointer;
+          font-family: 'DM Sans', system-ui, sans-serif;
+          font-size: 14px;
+          font-weight: 500;
+          color: #374151;
+          transition: background 0.15s, border-color 0.15s;
+        }
+        .lgn-google:hover {
+          background: #F9FAFB;
+          border-color: #D1D5DB;
+        }
+
+        .lgn-divider {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          margin: 14px 0;
+        }
+
+        .lgn-divider-line {
+          flex: 1;
+          height: 1px;
+          background: #ECEDEF;
+        }
+
+        .lgn-divider-text {
+          font-size: 11.5px;
+          color: #B4B8BF;
+          white-space: nowrap;
+        }
+
+        .lgn-label {
+          display: block;
+          font-size: 12.5px;
+          font-weight: 500;
+          color: #374151;
+          margin-bottom: 6px;
+        }
+
+        .lgn-input {
+          width: 100%;
+          padding: 11px 14px;
+          border-radius: 7px;
+          border: 1.5px solid #E9EAEC;
+          font-family: 'DM Sans', system-ui, sans-serif;
+          font-size: 14px;
+          color: #111827;
+          outline: none;
+          background: #FAFAFA;
+          transition: border-color 0.18s, background 0.18s;
+        }
+        .lgn-input:focus {
+          border-color: #D4A843;
+          background: #fff;
+        }
+        .lgn-input::placeholder { color: #C4C6CB; }
+
+        .lgn-submit {
+          width: 100%;
+          padding: 13px 16px;
+          border-radius: 7px;
+          background: #080C14;
+          color: #F5F0E8;
+          border: none;
+          cursor: pointer;
+          font-family: 'DM Sans', system-ui, sans-serif;
+          font-size: 14px;
+          font-weight: 600;
+          letter-spacing: 0.01em;
+          margin-top: 4px;
+          transition: background 0.15s, opacity 0.15s;
+        }
+        .lgn-submit:hover:not(:disabled) { background: #1a2235; }
+        .lgn-submit:disabled { opacity: 0.55; cursor: not-allowed; }
+
+        .lgn-error {
+          display: flex;
+          align-items: flex-start;
+          gap: 8px;
+          padding: 10px 14px;
+          border-radius: 7px;
+          background: #FEF2F2;
+          border: 1px solid #FECACA;
+          font-size: 13px;
+          color: #DC2626;
+        }
+
+        .lgn-close {
+          position: absolute;
+          top: 16px;
+          right: 16px;
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          border: 1px solid #E5E7EB;
+          background: #fff;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #9CA3AF;
+          transition: background 0.15s, color 0.15s;
+          text-decoration: none;
+        }
+        .lgn-close:hover { background: #F3F4F6; color: #374151; }
+
+        @media (max-width: 480px) {
+          .lgn-card { padding: 28px 20px 24px; border-radius: 14px; max-width: 100%; }
+        }
+      `}</style>
+
+      <div className="lgn-page">
+        <div className="lgn-grid" />
+        <div className="lgn-glow-a" />
+        <div className="lgn-glow-b" />
+
+        <div className="lgn-card">
+          <Link href="/signup" className="lgn-close" aria-label="Close">
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M1 1l12 12M13 1L1 13" />
+            </svg>
           </Link>
 
-          {/* Testimonial block */}
-          <div style={{ marginTop: 'auto', marginBottom: 'auto' }}>
-            <div style={{ color: '#D4A843', fontSize: 32, marginBottom: 20, lineHeight: 1 }}>&ldquo;</div>
-            <blockquote style={{ color: 'rgba(255,255,255,0.85)', fontSize: 18, lineHeight: 1.65, fontWeight: 300, maxWidth: 320 }}>
-              Managing our hostel used to take hours of paperwork. Now I track every room, student, and fee in minutes.
-            </blockquote>
-            <div style={{ marginTop: 28, display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{
-                width: 42, height: 42, borderRadius: '50%',
-                background: 'linear-gradient(135deg, rgba(212,168,67,0.35), rgba(212,168,67,0.1))',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: '#D4A843', fontWeight: 700, fontSize: 14, flexShrink: 0,
-              }}>MA</div>
-              <div>
-                <p style={{ color: '#fff', fontSize: 14, fontWeight: 500, margin: 0 }}>Muhammad Arif</p>
-                <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12, margin: '3px 0 0' }}>Head Warden, Life Star Hostel</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Bottom stats */}
-          <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 24, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
-            {[{ v: '50+', l: 'Rooms' }, { v: '300+', l: 'Students' }, { v: '5 yrs', l: 'Running' }].map(s => (
-              <div key={s.l}>
-                <p style={{ color: '#fff', fontWeight: 600, fontSize: 18, margin: 0, lineHeight: 1 }}>{s.v}</p>
-                <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11, margin: '5px 0 0' }}>{s.l}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Right form panel ─────────────────────────────────────────── */}
-      <div style={{
-        flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        minHeight: '100vh', background: '#fff', padding: '48px 24px',
-      }}>
-        <div style={{ width: '100%', maxWidth: 380 }}>
-
-          {/* Mobile logo */}
-          <Link href="/" className="lg:hidden" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', marginBottom: 36 }}>
-            <div style={{
-              width: 32, height: 32, borderRadius: 9,
-              background: 'linear-gradient(135deg, #D4A843, #F0C866)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: '#0F1623', fontWeight: 700, fontSize: 13,
-            }}>★</div>
-            <span style={{ color: '#111', fontWeight: 600, fontSize: 15 }}>Life Star Hostel</span>
+          <Link href="/" className="lgn-logo">
+            <div className="lgn-logo-icon">★</div>
+            <span className="lgn-logo-text">Life Star Hostel</span>
           </Link>
 
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: '#111827', margin: '0 0 6px', letterSpacing: '-0.03em' }}>
-            Sign in to your account
-          </h1>
-          <p style={{ fontSize: 14, color: '#6B7280', margin: '0 0 28px' }}>
-            Welcome back! Enter your credentials below.
-          </p>
+          <h1 className="lgn-heading">Sign in to your account</h1>
+          <p className="lgn-sub">Welcome back! Enter your credentials below.</p>
 
-          {/* Google button */}
           <button
             type="button"
+            className="lgn-google"
             onClick={() => toast.info('Google sign-in is not configured yet.')}
-            style={{
-              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              gap: 10, padding: '10px 16px', borderRadius: 8,
-              border: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer',
-              fontSize: 14, fontWeight: 500, color: '#374151',
-              transition: 'background 0.15s',
-            }}
-            onMouseEnter={e => (e.currentTarget.style.background = '#F9FAFB')}
-            onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
           >
             <GoogleIcon />
             Continue with Google
           </button>
 
-          {/* Divider */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0' }}>
-            <div style={{ flex: 1, height: 1, background: '#E5E7EB' }} />
-            <span style={{ fontSize: 12, color: '#9CA3AF', whiteSpace: 'nowrap' }}>or continue with email</span>
-            <div style={{ flex: 1, height: 1, background: '#E5E7EB' }} />
+          <div className="lgn-divider">
+            <div className="lgn-divider-line" />
+            <span className="lgn-divider-text">or continue with email</span>
+            <div className="lgn-divider-line" />
           </div>
 
-          {/* Form */}
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
             <div>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>
-                Email
-              </label>
+              <label className="lgn-label">Email</label>
               <input
+                className="lgn-input"
                 type="email" required autoComplete="email"
                 value={form.email}
                 onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                 placeholder="you@example.com"
-                style={{
-                  width: '100%', padding: '10px 14px', borderRadius: 8,
-                  border: '1px solid #E5E7EB', fontSize: 14, color: '#111827',
-                  outline: 'none', background: '#fff', boxSizing: 'border-box',
-                  transition: 'border-color 0.15s',
-                }}
-                onFocus={e => (e.target.style.borderColor = '#3B82F6')}
-                onBlur={e => (e.target.style.borderColor = '#E5E7EB')}
               />
             </div>
 
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <label style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>Password</label>
+                <label className="lgn-label" style={{ margin: 0 }}>Password</label>
                 <button
                   type="button"
-                  style={{ fontSize: 12, color: '#3B82F6', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                  style={{ fontSize: 12, color: '#D4A843', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: "'DM Sans', system-ui, sans-serif", fontWeight: 500 }}
                   onClick={() => toast.info('Password reset is not available yet.')}
                 >
                   Forgot password?
@@ -179,27 +320,22 @@ export default function LoginPage() {
               </div>
               <div style={{ position: 'relative' }}>
                 <input
+                  className="lgn-input"
                   type={showPass ? 'text' : 'password'} required autoComplete="current-password"
                   value={form.password}
                   onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
                   placeholder="••••••••"
-                  style={{
-                    width: '100%', padding: '10px 40px 10px 14px', borderRadius: 8,
-                    border: '1px solid #E5E7EB', fontSize: 14, color: '#111827',
-                    outline: 'none', background: '#fff', boxSizing: 'border-box',
-                    transition: 'border-color 0.15s',
-                  }}
-                  onFocus={e => (e.target.style.borderColor = '#3B82F6')}
-                  onBlur={e => (e.target.style.borderColor = '#E5E7EB')}
+                  style={{ paddingRight: 42 }}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPass(v => !v)}
+                  tabIndex={-1}
                   style={{
                     position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-                    background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', padding: 0, lineHeight: 0,
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    color: '#B4B8BF', padding: 0, lineHeight: 0,
                   }}
-                  tabIndex={-1}
                 >
                   <EyeIcon open={showPass} />
                 </button>
@@ -207,45 +343,30 @@ export default function LoginPage() {
             </div>
 
             {error && (
-              <div style={{
-                display: 'flex', alignItems: 'flex-start', gap: 8,
-                padding: '10px 14px', borderRadius: 8,
-                background: '#FEF2F2', border: '1px solid #FECACA', fontSize: 13, color: '#DC2626',
-              }}>
+              <div className="lgn-error">
                 <span style={{ flexShrink: 0, marginTop: 1 }}>⚠</span>
                 {error}
               </div>
             )}
 
-            <button
-              type="submit" disabled={loading}
-              style={{
-                width: '100%', padding: '11px 16px', borderRadius: 8,
-                background: loading ? '#6B7280' : '#111827', color: '#fff',
-                border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
-                fontSize: 14, fontWeight: 600, marginTop: 4,
-                transition: 'background 0.15s',
-              }}
-              onMouseEnter={e => { if (!loading) e.currentTarget.style.background = '#1F2937' }}
-              onMouseLeave={e => { if (!loading) e.currentTarget.style.background = '#111827' }}
-            >
+            <button className="lgn-submit" type="submit" disabled={loading}>
               {loading ? 'Signing in…' : 'Sign in'}
             </button>
           </form>
 
-          <p style={{ textAlign: 'center', fontSize: 13, color: '#6B7280', marginTop: 24 }}>
+          <p style={{ textAlign: 'center', fontSize: 13, color: '#9CA3AF', marginTop: 16 }}>
             Don&apos;t have an account?{' '}
-            <Link href="/signup" style={{ color: '#3B82F6', fontWeight: 500, textDecoration: 'none' }}>
+            <Link href="/signup" style={{ color: '#D4A843', fontWeight: 600, textDecoration: 'none' }}>
               Sign up
             </Link>
           </p>
 
-          <p style={{ textAlign: 'center', fontSize: 11, color: '#D1D5DB', marginTop: 24, lineHeight: 1.6 }}>
+          <p style={{ textAlign: 'center', fontSize: 11, color: '#D1D5DB', marginTop: 10, lineHeight: 1.65 }}>
             By continuing, you agree to our Terms of Service and Privacy Policy.
           </p>
         </div>
       </div>
-    </div>
+    </>
   )
 }
 
